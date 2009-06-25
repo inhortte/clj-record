@@ -38,6 +38,15 @@
         other-1 (manufacturer/create (valid-manufacturer-with {:name "Some Other"}))]
     (is (= [humedai] (manufacturer/find-records ["name = ?" "Humedai Motors"])))))
 
+(defdbtest get-record-includes-metadata
+  (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Motors"}))]
+    (is (= :manufacturer (:model ^(manufacturer/get-record (humedai :id)))))))
+
+(defdbtest find-records-include-metadata
+  (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Motors"}))
+        other-1 (manufacturer/create (valid-manufacturer-with {:name "Some Other"}))]
+    (is (= :manufacturer (:model ^(first (manufacturer/find-records ["name = ?" "Humedai Motors"])))))))
+
 (defdbtest find-by-sql-uses-a-complete-query
   (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Motors"}))]
     (is (= (manufacturer/find-records ["name = ?" "Humedai Motors"])

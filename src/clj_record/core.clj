@@ -70,7 +70,9 @@
   (connected (db-spec-for model-name)
     (sql/with-query-results rows [(format "select * from %s where id = ?" (table-name model-name)) id]
       (if (empty? rows) (throw (IllegalArgumentException. "Record does not exist")))
-      (run-callbacks (merge {} (first rows)) model-name :after-load))))
+      (with-meta
+       (run-callbacks (merge {} (first rows)) model-name :after-load)
+       {:model (keyword model-name)}))))
 
 (defn create
   "Inserts a record populated with attributes and returns it."
@@ -88,7 +90,9 @@
   [model-name select-query-and-values]
     (connected (db-spec-for model-name)
       (sql/with-query-results rows select-query-and-values
-        (doall (map #(run-callbacks (merge {} %) model-name :after-load) rows)))))
+        (doall (map #(with-meta
+                       (run-callbacks (merge {} %) model-name :after-load)
+                       {:model (keyword model-name)}) rows)))))
 
 (defn find-records
   "Returns a vector of matching records.
