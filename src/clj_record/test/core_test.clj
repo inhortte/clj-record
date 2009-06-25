@@ -25,9 +25,6 @@
   (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Motors"}))]
     (is (= humedai (manufacturer/get-record (humedai :id))))))
 
-(defdbtest get-record-throws-if-not-found
-  (is (thrown? IllegalArgumentException (manufacturer/get-record -1))))
-
 (defdbtest find-records-by-attribute-equality-conditions
   (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Motors"}))
         other-1 (manufacturer/create (valid-manufacturer-with {:name "Some Other"}))]
