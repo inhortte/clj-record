@@ -6,4 +6,5 @@
 (clj-record.core/init-model
   :table-name "productos"
   (:associations
-    (belongs-to manufacturer)))
+    (belongs-to manufacturers)
+    (has-many orders :on product)))

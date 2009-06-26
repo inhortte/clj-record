@@ -1,7 +1,9 @@
 (ns clj-record.test.associations-test
   (:require
     [clj-record.test.model.manufacturer :as manufacturer]
-    [clj-record.test.model.product :as product])
+    [clj-record.test.model.product :as product]
+    [clj-record.test.model.customer :as customer]
+    [clj-record.test.model.order :as order])
   (:use clojure.contrib.test-is
         clj-record.test.test-helper))
 
@@ -9,13 +11,43 @@
 (defdbtest belongs-to-creates-find-function
   (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Automotive"}))
         s3000xi (product/create {:name "S-3000xi" :manufacturer_id (:id humedai)})]
-    (is (= humedai (product/find-manufacturer s3000xi)))))
+    (is (= humedai (product/get-manufacturer s3000xi)))))
+
+(defdbtest belongs-to-with-as-creates-a-get-function
+  (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Automotive"}))
+        s3000xi (product/create {:name "S-3000xi" :manufacturer_id (:id humedai)})
+        john-doe (customer/create {:name "John Doe"})
+        order-1 (order/create {:customer_id (:id john-doe) :product (:id s3000xi) :date "2009-06-17 09:55:36.0"})]
+    (is (= john-doe (order/get-purchaser order-1)))))
+
+(defdbtest belongs-to-with-on-creates-a-get-function
+  (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Automotive"}))
+        s3000xi (product/create {:name "S-3000xi" :manufacturer_id (:id humedai)})
+        john-doe (customer/create {:name "John Doe"})
+        order-1 (order/create {:customer_id (:id john-doe) :product (:id s3000xi) :date "2009-06-17 09:55:36.0"})]
+    (is (= s3000xi (order/get-product order-1)))))
 
 (defdbtest has-many-creates-a-find-function
   (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Automotive"}))
         s3000xi (product/create {:name "S-3000xi" :manufacturer_id (:id humedai)})
         s3000xl (product/create {:name "S-3000xl" :manufacturer_id (:id humedai)})]
     (is (= [s3000xi s3000xl] (manufacturer/find-products humedai)))))
+
+(defdbtest has-many-with-as-creates-a-find-function
+  (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Automotive"}))
+        s3000xi (product/create {:name "S-3000xi" :manufacturer_id (:id humedai)})
+        john-doe (customer/create {:name "John Doe"})
+        order-1 (order/create {:customer_id (:id john-doe) :product (:id s3000xi) :date "2009-06-17 09:55:36.0"})
+        order-2 (order/create {:customer_id (:id john-doe) :product (:id s3000xi) :date "2009-06-17 11:10:13.0"})]
+    (is (= [order-1 order-2] (customer/find-purchases john-doe)))))
+
+(defdbtest has-many-with-on-creates-a-find-function
+  (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Automotive"}))
+        s3000xi (product/create {:name "S-3000xi" :manufacturer_id (:id humedai)})
+        john-doe (customer/create {:name "John Doe"})
+        order-1 (order/create {:customer_id (:id john-doe) :product (:id s3000xi) :date "2009-06-17 09:55:36.0"})
+        order-2 (order/create {:customer_id (:id john-doe) :product (:id s3000xi) :date "2009-06-17 11:10:13.0"})]
+    (is (= [order-1 order-2] (product/find-orders s3000xi)))))
 
 (defdbtest has-many-creates-a-destroy-function
   (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Automotive"}))

@@ -15,6 +15,8 @@
   (try
     (sql/drop-table :manufacturers)
     (sql/drop-table :productos)
+    (sql/drop-table :customers)
+    (sql/drop-table :orders)
     (catch Exception e)))
 
 (defn create-tables []
@@ -27,7 +29,15 @@
     (get-id-key-spec db "product_pk")
     [:name            "VARCHAR(32)" "NOT NULL"]
     [:price           :int]
-    [:manufacturer_id :int "NOT NULL"]))
+    [:manufacturer_id :int "NOT NULL"])
+  (sql/create-table :customers
+    (get-id-key-spec db "customer_pk")
+    [:name "VARCHAR(32)" "NOT NULL"])
+  (sql/create-table :orders
+    (get-id-key-spec db "order_pk")
+    [:customer_id :int "NOT NULL"]
+    [:product :int "NOT NULL"]
+    [:date "VARCHAR(32)" "NOT NULL"]))
 
 (defn reset-db []
   (println "resetting" (db :subprotocol))
