@@ -25,8 +25,8 @@
         find-fn-name (symbol (str "find-" assoc-name))
         destroy-fn-name (symbol (str "destroy-" assoc-name))]
     `(do
-      (defn ~find-fn-name [record#]
-        (clj-record.core/find-records ~associated-model-name {~foreign-key-attribute (record# :id)}))
+      (defn ~find-fn-name [record# & options#]
+        (apply clj-record.core/find-records ~associated-model-name {~foreign-key-attribute (record# :id)} options#))
       (defn ~destroy-fn-name [record#]
         (clj-record.core/destroy-records ~associated-model-name {~foreign-key-attribute (record# :id)})))))
 

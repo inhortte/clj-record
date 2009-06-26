@@ -3,7 +3,6 @@
             [clojure.contrib.str-utils  :as str-utils])
   (:use (clj-record meta util callbacks)))
 
-
 (defn table-name
   "Retrieves table-name from model-metadata."
   [model-name]
@@ -38,6 +37,33 @@
       attributes)]
     (apply vector (str-utils/str-join " AND " parameterized-conditions) values)))
 
+(defn parse-order-condition
+  "Accepts either a keyword, or a hash-map containing a single entry.
+Both the key and the value of the hash-map should be keywords. The value of the
+hash-map should be either :asc or :desc. Returns a space-separated string of all
+the keywords.
+
+Throws IllegalArgumentException if the hash-map doesn't have exactly 1 element."
+  [value]
+  (cond
+    (keyword? value) (name value)
+    (map? value)
+    (if (not= (count value) 1)
+      (throw (IllegalArgumentException.
+              "Hash-map must contain exactly one element."))
+      (format "%s %s"
+              (name (first (keys value)))
+              (name (first (vals value)))))))
+
+(defn order-conditions
+  "If given a vector, returns a comma and space separated string
+of parsed order conditions of each element. Otherwise, the entire
+input is parsed as an order condition."
+  [attributes]
+  (if (vector? attributes)
+    (str-utils/str-join ", " (map parse-order-condition attributes))
+    (parse-order-condition attributes)))
+
 (defmacro connected
   "Ensures that the body is run with a single DB connection.
   Doesn't create a new connection if there already is one.
@@ -64,6 +90,39 @@
     (sql/with-query-results rows [(id-query-for (db-spec-for model-name) (table-name model-name))]
       (val (first (first rows))))))
 
+(defn parse-query-options
+  "Accepts a sequence of an optional map or vector optionally
+followed by a sequence of keyword and value option pairs.
+Returns a map of parsed options and query params."
+  [params-and-options]
+  (let [contains-params? (not (keyword? (first params-and-options)))
+        options (apply hash-map (if contains-params?
+                                  (rest params-and-options)
+                                  params-and-options))
+        attributes-or-where-params (if contains-params?
+                                     (first params-and-options))
+        [parameterized-where & values]
+        (if (map? attributes-or-where-params)
+          (to-conditions attributes-or-where-params)
+          attributes-or-where-params)]
+    (merge options {:where parameterized-where :values values})))
+
+(defn create-query
+  "Returns a SQL SELECT statement for the given model using provided options."
+  [model-name params-and-options]
+  (let [options (parse-query-options params-and-options)
+        query-string
+        (str-utils/str-join
+         " "
+         [(format "select * from %s" (table-name model-name))
+          (if (:where options)
+            (format "where %s" (:where options)))
+          (if (:order options)
+            (format "order by %s" (order-conditions (:order options))))
+          (if (:limit options)
+            (format "limit %s" (:limit options)))])]
+    (apply vector query-string (:values options))))
+
 (defn find-by-sql
   "Returns a vector of matching records.
   select-query-and-values should be something like
@@ -80,14 +139,11 @@
 (defn find-records
   "Returns a vector of matching records.
   Given a where-params vector, uses it as-is. (See clojure.contrib.sql/with-query-results.)
-  Given a map of attribute-value pairs, uses to-conditions to convert to where-params."
-  [model-name attributes-or-where-params]
-  (let [[parameterized-where & values]
-          (if (map? attributes-or-where-params)
-            (to-conditions attributes-or-where-params)
-            attributes-or-where-params)
-        select-query (format "select * from %s where %s" (table-name model-name) parameterized-where)]
-    (find-by-sql model-name (apply vector select-query values))))
+  Given a map of attribute-value pairs, uses to-conditions to convert to where-params.
+  Parses all additional keyword-value pairs as query options."
+  [model-name & params-and-options]
+  (let [select-query (create-query model-name params-and-options)]
+    (find-by-sql model-name select-query)))
 
 (defn get-record
   "Retrieves record by id, returns nil if not found."
@@ -164,8 +220,8 @@
       (defn ~'table-name [] (table-name ~model-name))
       (defn ~'get-record [id#]
         (get-record ~model-name id#))
-      (defn ~'find-records [attributes#]
-        (find-records ~model-name attributes#))
+      (defn ~'find-records [& attributes#]
+        (apply find-records ~model-name attributes#))
       (defn ~'find-by-sql [select-query-and-values#]
         (find-by-sql ~model-name select-query-and-values#))
       (defn ~'create [attributes#]

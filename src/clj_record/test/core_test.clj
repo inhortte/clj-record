@@ -49,6 +49,44 @@
     (is (= (manufacturer/find-records ["name = ?" "Humedai Motors"])
            (manufacturer/find-by-sql ["SELECT * FROM manufacturers WHERE name = ?" "Humedai Motors"])))))
 
+(defdbtest find-records-with-no-params-returns-all-rows
+  (let [[sozooke foyoto gmb ghysler merledas] (manufacturers)]
+    (is (= [sozooke foyoto gmb ghysler merledas] (manufacturer/find-records)))))
+
+(defdbtest find-records-can-be-ordered
+  (let [[sozooke foyoto gmb ghysler merledas] (manufacturers2)]
+    ;; NB: Capital letters sort before lowercase.
+    (is (= [foyoto gmb ghysler merledas sozooke]
+           (manufacturer/find-records :order :name)))))
+
+(defdbtest find-records-with-attribute-equality-can-be-ordered
+  (let [[sozooke foyoto gmb ghysler merledas] (manufacturers2)]
+    (is (= [merledas gmb]
+           (manufacturer/find-records {:grade 89} :order :founded)))))
+
+(defdbtest find-records-can-order-with-direction
+  (let [[sozooke foyoto gmb ghysler merledas] (manufacturers2)]
+    (is (= [merledas gmb]
+           (manufacturer/find-records {:grade 89} :order {:founded :asc})))
+    (is (= [gmb merledas]
+           (manufacturer/find-records {:grade 89} :order {:founded :desc}))))
+)
+
+(defdbtest find-records-can-be-ordered-by-multiple-conditions
+  (let [[sozooke foyoto gmb ghysler merledas] (manufacturers2)]
+    (is (= [merledas ghysler foyoto gmb sozooke]
+           (manufacturer/find-records :order [:founded :grade])))
+    (is (= [gmb sozooke ghysler foyoto merledas]
+           (manufacturer/find-records :order [{:founded :desc} :grade])))
+    (is (= [sozooke gmb foyoto ghysler merledas]
+           (manufacturer/find-records :order [{:founded :desc} {:grade :desc}])))))
+
+(comment
+  ;; Limiting does not work with Derby
+ (defdbtest find-records-can-be-limited
+   (let [[sozooke foyoto gmb ghysler merledas] (manufacturers)]
+     (is (= [sozooke foyoto] (manufacturer/find-records :limit 2))))))
+
 (defdbtest destroy-record-destroys-by-id-from-record
   (let [humedai (manufacturer/create (valid-manufacturer-with {:name "Humedai Motors"}))]
     (manufacturer/destroy-record {:id (humedai :id)})
@@ -81,6 +119,15 @@
     ["a NOT IN (?, ?, ?)" 1 2 3] {:a (query/not-in 1 2 3)})
   (let [r (core/to-conditions {:a 1 :b 2})]
     (is (or (= r ["a = ? AND b = ?" 1 2]) (= r ["b = ? AND a = ?" 2 1])))))
+
+(deftest order-conditions
+  (are (= _1 (core/order-conditions _2))
+       "a" :a
+       "a desc" {:a :desc}
+       "a asc" {:a :asc}
+       "a, b" [:a :b]
+       "a asc, b" [{:a :asc} :b]
+       "a asc, b desc" [{:a :asc} {:b :desc}]))
 
 (deftest model-metadata-with-no-args
   (is (= 

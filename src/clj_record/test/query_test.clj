@@ -7,14 +7,6 @@
   (:use clojure.contrib.test-is
         clj-record.test.test-helper))
 
-
-(defn manufacturers [] 
-  [ (manufacturer/create (valid-manufacturer-with {:name "Sozooke Motors" :grade 90}))
-    (manufacturer/create (valid-manufacturer-with {:name "Foyoto Auto" :grade 78}))
-    (manufacturer/create (valid-manufacturer-with {:name "GMB Motors" :grade 89}))
-    (manufacturer/create (valid-manufacturer-with {:name "Ghysler Inc" :grade 60}))
-    (manufacturer/create (valid-manufacturer-with {:name "Merledas Automotive" :grade 39}))])
-
 (defdbtest find-records-using-equal
   (let [[sozooke foyoto gmb ghysler merledas] (manufacturers)]
     (is (= #{sozooke} (set (manufacturer/find-records {:grade (query/equal 90)}))))))
