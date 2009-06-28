@@ -1,6 +1,7 @@
 (ns clj-record.core
   (:require [clojure.contrib.sql        :as sql]
-            [clojure.contrib.str-utils  :as str-utils])
+            [clojure.contrib.str-utils  :as str-utils]
+            [clj-record.query :as q])
   (:use (clj-record meta util callbacks)))
 
 (defn table-name
@@ -15,27 +16,6 @@
 
 (defn set-db-spec [model-name db-spec]
   (dosync (set-model-metadata-for model-name :db-spec db-spec)))
-
-(defn to-conditions
-  "Converts the given attribute map into a clojure.contrib.sql style 'where-params,'
-  a vector containing a parameterized conditions string followed by ordered values for the parameters.
-  Conditions will be ANDed together.
-  Nil attributes will be turned into 'attr_name IS NULL' with no value in the vector."
-  [attributes]
-  ; XXX: Surely there's a better way.
-  (let [[parameterized-conditions values] (reduce
-      (fn [[parameterized-conditions values] [attribute value]]
-       (cond
-         (nil? value)
-         [(conj parameterized-conditions (format "%s IS NULL" (name attribute))) values]
-         (fn? value)
-         (let [[new-condition new-values] (value attribute)]
-           [(conj parameterized-conditions new-condition) (apply conj values new-values)])
-         :else
-         [(conj parameterized-conditions (format "%s = ?" (name attribute))) (conj values value)]))
-      [[] []]
-      attributes)]
-    (apply vector (str-utils/str-join " AND " parameterized-conditions) values)))
 
 (defn parse-order-condition
   "Accepts either a keyword, or a hash-map containing a single entry.
@@ -101,10 +81,8 @@ Returns a map of parsed options and query params."
                                   params-and-options))
         attributes-or-where-params (if contains-params?
                                      (first params-and-options))
-        [parameterized-where & values]
-        (if (map? attributes-or-where-params)
-          (to-conditions attributes-or-where-params)
-          attributes-or-where-params)]
+        [parameterized-where values]
+        (q/parse-condition attributes-or-where-params)]
     (merge options {:where parameterized-where :values values})))
 
 (defn create-query
@@ -139,7 +117,7 @@ Returns a map of parsed options and query params."
 (defn find-records
   "Returns a vector of matching records.
   Given a where-params vector, uses it as-is. (See clojure.contrib.sql/with-query-results.)
-  Given a map of attribute-value pairs, uses to-conditions to convert to where-params.
+  Given a map of attribute-value pairs, uses query/parse-condition to convert to where-params.
   Parses all additional keyword-value pairs as query options."
   [model-name & params-and-options]
   (let [select-query (create-query model-name params-and-options)]
@@ -176,7 +154,8 @@ Returns a map of parsed options and query params."
   "Deletes all records matching (-> attributes to-conditions)."
   [model-name attributes]
   (connected (db-spec-for model-name)
-    (sql/delete-rows (table-name model-name) (to-conditions attributes))))
+    (let [[param values] (q/parse-condition attributes)]
+      (sql/delete-rows (table-name model-name) (apply vector param values)))))
 
 (defn- defs-from-option-groups [model-name option-groups]
   (reduce
@@ -201,7 +180,7 @@ Returns a map of parsed options and query params."
 (defmacro init-model
   "Macro to turn a namespace into a 'model.'
   The segment of the namespace name following the last dot is used as the model-name.
-  Model-specific versions of most public functions in clj-record.core are defined 
+  Model-specific versions of most public functions in clj-record.core are defined
   in the model namespace (where the model-name as first argument can be omitted).
   Optional forms for associations and validation are specified here.
   See clj_record/test/model/manufacturer.clj for an example."
