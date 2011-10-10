@@ -104,6 +104,8 @@ name is inferred from the association name. For example, in
 
 the foreign key name will be mother_id (not person_id).
 
+Working on has-and-belongs-to.
+
 h3. Validations
 
 Do this.
