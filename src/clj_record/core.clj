@@ -1,5 +1,5 @@
 (ns clj-record.core
-  (:require [clojure.contrib.sql        :as sql]
+  (:require [clojure.java.jdbc        :as sql]
             [clojure.contrib.str-utils  :as str-utils])
   (:use (clj-record meta util callbacks)))
 

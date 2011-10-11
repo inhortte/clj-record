@@ -1,5 +1,5 @@
 derby.log
 classes
 *.swp
-clj-record.jar
+clj-record*.jar
 /lib/*

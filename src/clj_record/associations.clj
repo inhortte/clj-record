@@ -1,5 +1,7 @@
 (ns clj-record.associations
-  (:use clj-record.util))
+  (:use clj-record.util)
+  (:use (clojure.contrib str-utils))
+  (:use clj-record.middleware))
 
 
 (defn expand-init-option
@@ -31,6 +33,50 @@
         (clj-record.core/find-records ~associated-model-name {~foreign-key-attribute (record# :id)}))
       (defn ~destroy-fn-name [record#]
         (clj-record.core/destroy-records ~associated-model-name {~foreign-key-attribute (record# :id)})))))
+
+(defn has-and-belongs-to-many
+  "Defines an association to a model whose name is infered by singularizing association-name.
+  In ns foo's init-model, (has-and-belongs-tomany bars) will define the find-bars function in foo,
+  which takes a foo record and find bars by {:foo_id (record :id)}.
+
+  Options are alternating key/value pairs. Supported options:
+
+    :join-table the-join-table
+    :association-fk the-association's-foreign-key-in-the-join-table
+    :model-fk the-model's-foreign-key-in-the-join-table
+    :association-model association-model-name
+
+  The join table, if not specified, defaults to the model-name and the association name, both pluralized, alphabetized, and joined by an underscore.
+  The foreign keys in the join table default to singular-model-name_id.
+  
+  Called indirectly via clj-record.core/init-model."
+  [model-name association-name & options]
+  (let [opts (apply hash-map options)
+        associated-table-name (name association-name)
+        associated-model-name (str (or (:association-model opts)
+                                       (singularize associated-table-name)))
+        association-fk (or (:association-fk opts)
+                           (str associated-model-name "_id"))
+        model-fk (or (:model-fk opts)
+                     (str (name model-name) "_id"))
+        join-table (or (:join-table opts)
+                       (str-join "_" (sort [(pluralize model-name)
+                                            associated-table-name])))
+        find-fn-name (symbol (str "find-" associated-table-name))]
+    `(do
+       (defn ~find-fn-name [record#]
+         (clj-record.core/find-by-sql ~model-name
+                                      [(str "select "
+                                            ~associated-table-name ".*"
+                                            " from "
+                                            ~associated-table-name ", "
+                                            ~join-table
+                                            " where "
+                                            ~join-table "." ~model-fk
+                                            "=? and "
+                                            ~join-table "." ~association-fk
+                                            "=" ~associated-table-name ".id")
+                                       (record# :id)])))))
 
 (defn belongs-to
   "Defines an association to a model named association-name.
